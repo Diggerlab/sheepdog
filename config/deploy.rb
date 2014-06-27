@@ -27,8 +27,22 @@ set :shared_path, "#{deploy_to}/shared"
 role :web, ENV['DEPLOY_WEB_SERVER']                          # Your HTTP server, Apache/etc
 role :app, ENV['DEPLOY_APP_SERVER']                         # This may be the same as your `Web` server
 
+set :unicorn_config, "#{current_path}/config/unicorn.rb"
+set :unicorn_pid, "#{current_path}/tmp/pids/unicorn.pid"
 
 namespace:deploy do
+    task :start_unicorn, :roles => :app do
+      run "cd #{current_path} && bundle exec unicorn -c #{unicorn_config} -D"
+    end
+
+    task :stop_unicorn, :roles => :app do
+      run "if [ -f #{unicorn_pid} ]; then kill -QUIT `cat #{unicorn_pid}`; fi"
+    end
+
+    task :restart_unicorn, :roles => :app do
+      run "if [ -f #{unicorn_pid} ]; then kill -s USR2 `cat #{unicorn_pid}`; fi"
+    end
+
     namespace:app do 
       task:start do
       end
@@ -41,11 +55,7 @@ namespace:deploy do
       # end
 
       after "deploy:restart", :roles => :app do
-        #add any tasks in here that you want to run after the project is deployed
-        run "rm -rf #{release_path}.git"
-        run "chmod -R 755 #{current_path}"
-        run "touch #{File.join(current_path,'tmp','restart.txt')}"
-        
+        after "deploy:restart", "deploy:restart_unicorn"
       end
     end
 
